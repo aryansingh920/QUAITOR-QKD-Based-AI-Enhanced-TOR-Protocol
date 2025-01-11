@@ -1,151 +1,104 @@
 /*
-Created on 11/01/2025
-
+Updated on 11/01/2025
 @author: Aryan
 
-Filename: protocol.go
-
-Relative Path: tor-protocol/protocol/protocol.go
+Core "protocol" logic, including building circuits and sending data (requests/responses).
 */
-
 package protocol
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
-	mrand "math/rand"
+	"math/rand"
 	"net"
+	"os"
 	"time"
-	"tor-protocol/config"
 )
 
-// RelayCell is a simple container for a message and next address
+// RelayCell is our minimal container for data + next/prev addresses
 type RelayCell struct {
-    NextAddr string
-    Payload  []byte
+    PrevAddr       string // the node that sent to me
+    NextAddr       string // the node to send to next
+    Payload        []byte // raw data
+    IsExitRequest  bool   // if set, the next node is the final destination
+    IsExitResponse bool   // if set, data is returning from final destination
 }
 
-// BuildCircuit picks a random set of nodes for the path and assigns roles (entry, relays, exit).
-func BuildCircuit(nodes []*Node, pathLength int) ([]*Node, error) {
-    if pathLength < 2 || pathLength > len(nodes) {
-        return nil, fmt.Errorf("invalid path length: %d", pathLength)
+// BuildCircuit picks a random path from the known nodes, sets roles, and returns that path.
+func BuildCircuit(knownPorts []int, pathLength int) ([]*Node, error) {
+    if pathLength < 2 || pathLength > len(knownPorts) {
+        return nil, errors.New("invalid path length")
     }
 
-    // Shuffle nodes and pick the first 'pathLength' from the random set
-    shuffled := make([]*Node, len(nodes))
-    copy(shuffled, nodes)
-    mrand.Shuffle(len(shuffled), func(i, j int) {
+    // Shuffle to get random selection
+    shuffled := append([]int(nil), knownPorts...)
+    rand.Shuffle(len(shuffled), func(i, j int) {
         shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
     })
-    path := shuffled[:pathLength]
 
-    // Assign roles: first => ENTRY, last => EXIT, middle => RELAY
-    if pathLength == 2 {
-        path[0].Role = EntryNode
-        path[1].Role = ExitNode
-    } else {
-        path[0].Role = EntryNode
-        for i := 1; i < pathLength-1; i++ {
-            path[i].Role = RelayNode
-        }
-        path[pathLength-1].Role = ExitNode
-    }
-
-    return path, nil
-}
-
-// SendThroughCircuit sends a message through the circuit.
-func SendThroughCircuit(circuit []*Node, message string) error {
-    // We simulate onion routing by building relay cells.
-    // In a real Tor, you'd wrap encrypted layers. Here, we just forward "raw" data for simplicity.
-
-    if len(circuit) == 0 {
-        return fmt.Errorf("circuit is empty")
-    }
-
-    // NextAddr for the first node is the second node's address
-    // If only 2 nodes, first is entry, second is exit.
-    // We'll build relay cells in a forward-chained manner:
-    var prevNext string
-    for i := 0; i < len(circuit)-1; i++ {
-        nextNode := circuit[i+1]
-        prevNext = fmt.Sprintf("127.0.0.1:%d", nextNode.Port)
-    }
-
-    // In a real Tor, you'd encrypt the message with the exit node's key, then wrap in the middle node keys, etc.
-    // We skip real encryption here but keep the placeholders.
-
-    // Create the final RelayCell for the entry node
-    cell := RelayCell{
-        NextAddr: prevNext,
-        Payload:  []byte(message),
-    }
-
-    // Connect to the entry node and write
-    entryNode := circuit[0]
-    entryAddr := fmt.Sprintf("127.0.0.1:%d", entryNode.Port)
-    conn, err := net.Dial("tcp", entryAddr)
-    if err != nil {
-        return fmt.Errorf("error dialing entry node: %v", err)
-    }
-    defer conn.Close()
-
-    data, err := cell.Serialize()
-    if err != nil {
-        return fmt.Errorf("error serializing relay cell: %v", err)
-    }
-
-    // Send the cell to the entry node
-    _, err = conn.Write(data)
-    if err != nil {
-        return fmt.Errorf("error writing to entry node: %v", err)
-    }
-
-    log.Printf("Sent message to entry node (%s): %q\n", entryNode.ID, message)
-    return nil
-}
-
-// forwardToNextNode dials the next node in the chain and sends the relay cell
-func forwardToNextNode(cell *RelayCell) error {
-    if cell.NextAddr == "" {
-        // This means we are at the exit node
-        return nil
-    }
-
-    conn, err := net.DialTimeout("tcp", cell.NextAddr, 5*time.Second)
-    if err != nil {
-        return fmt.Errorf("dial next node: %v", err)
-    }
-    defer conn.Close()
-
-    data, err := cell.Serialize()
-    if err != nil {
-        return fmt.Errorf("serialize: %v", err)
-    }
-
-    _, err = conn.Write(data)
-    if err != nil {
-        return fmt.Errorf("write: %v", err)
-    }
-    return nil
-}
-
-// ParseRelayCell converts raw bytes into a RelayCell structure
-func ParseRelayCell(data []byte) (*RelayCell, error) {
-    return DeserializeCell(data)
-}
-
-// BootstrapNodes creates a list of Node instances from the config
-func BootstrapNodes(cfg *config.Config) []*Node {
-    nodes := make([]*Node, len(cfg.Ports))
-    for i, port := range cfg.Ports {
+    selectedPorts := shuffled[:pathLength]
+    var nodes []*Node
+    for i, p := range selectedPorts {
         node := &Node{
-            ID:      fmt.Sprintf("Node%d", i+1),
-            Role:    RelayNode, // default to RELAY, roles will be reassigned upon path creation
-            Port:    port,
-            stopCh:  make(chan struct{}),
+            ID:        fmt.Sprintf("Node%d", p),
+            Port:      p,
+            stopCh:    make(chan struct{}),
         }
-        nodes[i] = node
+        node.HtmlContent = fmt.Sprintf("<html><body><h1>Hello from port %d</h1></body></html>", p)
+
+        // If user has overridden role via environment, use that (for demonstration).
+        // Otherwise, assign roles automatically.
+        envRole := os.Getenv("TOR_NODE_ROLE")
+        if envRole != "" {
+            // If the user sets a role, we do not override them with random or entry/exit logic.
+            node.Role = NodeRole(envRole)
+        } else {
+            if i == 0 {
+                node.Role = EntryNode
+            } else if i == pathLength-1 {
+                node.Role = ExitNode
+            } else {
+                node.Role = RelayNode
+            }
+        }
+        nodes = append(nodes, node)
     }
-    return nodes
+    return nodes, nil
+}
+
+// forwardToAddress dials "addr" and sends the cell over TCP
+func forwardToAddress(cell *RelayCell, addr string) error {
+    conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+    if err != nil {
+        return fmt.Errorf("dial next node (%s): %v", addr, err)
+    }
+    defer conn.Close()
+
+    data, err := cell.Serialize()
+    if err != nil {
+        return fmt.Errorf("serialize cell: %v", err)
+    }
+
+    // write
+    _, err = conn.Write(data)
+    if err != nil {
+        return fmt.Errorf("write to node (%s): %v", addr, err)
+    }
+    return nil
+}
+
+// SetupLogging configures log output to go to both a file and stdout (optional).
+func SetupLogging(filename string) {
+    // open log file
+    logFile, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+    if err != nil {
+        log.Fatalf("Failed to open log file %s: %v", filename, err)
+    }
+
+    // Create multi-writer for stdout + file
+    mw := io.MultiWriter(os.Stdout, logFile)
+    log.SetOutput(mw)
+    log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
