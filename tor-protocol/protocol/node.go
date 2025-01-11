@@ -10,10 +10,12 @@ Implements the Node logic:
 package protocol
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"time"
 	"tor-protocol/config"
@@ -99,71 +101,48 @@ func (n *Node) handleConnection(conn net.Conn) {
 
     buffer := make([]byte, 4096)
     for {
-        // set a read deadline to avoid idle connections
-        conn.SetDeadline(time.Now().Add(300 * time.Second))
-        bytesRead, err := conn.Read(buffer)
-        if err != nil {
-            // could log or ignore
-            return
-        }
-        data := buffer[:bytesRead]
-
-        relayCell, err := ParseRelayCell(data)
-        if err != nil {
-            log.Printf("[%s] Error parsing RelayCell: %v\n", n.ID, err)
-            return
-        }
-
-        // For demonstration, skip real decryption
-        // In real Tor, we'd decrypt a layer here with ephemeralPriv
-
-        // If I'm the ExitNode for the requested onion service, handle the request
-        if n.Role == ExitNode && relayCell.IsExitRequest {
-            // parse the "onion" request from the payload
-            onionAddress := string(relayCell.Payload)
-            log.Printf("[%s] EXIT node handling request for '%s'\n", n.ID, onionAddress)
-            // "Serve" the HTML content
-            // Example: if the onionAddress is "9000.onion", respond with n.HtmlContent
-            response := []byte(n.HtmlContent)
-            // Send the response back in the same RelayCell (in real Tor you'd wrap it)
-            relayCell.Payload = response
-            relayCell.IsExitResponse = true
-            relayCell.IsExitRequest = false
-
-            // Forward back to the previous node (which must have been set in relayCell.PrevAddr)
-            // Notice we do NOT read the entire chain; we only know the previous address to send back
-            // If there's no PrevAddr, that means we can't respond
-            if relayCell.PrevAddr != "" {
-                err = forwardToAddress(relayCell, relayCell.PrevAddr)
-                if err != nil {
-                    log.Printf("[%s] Error sending exit response back: %v\n", n.ID, err)
-                }
-            }
-            continue
-        }
-
-        // If it's an ExitResponse, it means data is returning to the client, so we forward it back
-        if relayCell.IsExitResponse {
-            if relayCell.NextAddr != "" {
-                // forward the data back up the chain
-                err = forwardToAddress(relayCell, relayCell.NextAddr)
-                if err != nil {
-                    log.Printf("[%s] Error forwarding exit response: %v\n", n.ID, err)
-                }
-            }
-            continue
-        }
-
-        // Otherwise, I'm not the exit node, so just forward to the next hop (if any)
-        if relayCell.NextAddr != "" {
-            // log the forwarding action
-            log.Printf("[%s] Forwarding data to next node: %s\n", n.ID, relayCell.NextAddr)
-            err = forwardToAddress(relayCell, relayCell.NextAddr)
-            if err != nil {
-                log.Printf("[%s] Error forwarding to next node: %v\n", n.ID, err)
-            }
-        }
+    conn.SetDeadline(time.Now().Add(300 * time.Second))
+    bytesRead, err := conn.Read(buffer)
+    if err != nil {
+        return
     }
+    data := buffer[:bytesRead]
+
+    // NEW: Check if it's an HTTP GET
+    if isHTTPRequest(data) {
+        onionAddr := parseOnionPath(data)
+        if onionAddr == "" {
+            // If we can't parse the onion from the path, return a 400
+            conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\nMissing onion path\n"))
+            return
+        }
+        log.Printf("[%s] Got HTTP request for onion: %s\n", n.ID, onionAddr)
+
+        // Build circuit + fetch
+        htmlResp, err := n.fetchOnionViaCircuit(onionAddr)
+        if err != nil {
+            log.Printf("[%s] Error fetching onion: %v\n", n.ID, err)
+            conn.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\nFailed to fetch onion\n"))
+            return
+        }
+
+        // Write back a simple HTTP 200
+        responseHeaders := "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: text/html\r\n" +
+            "Connection: close\r\n\r\n"
+        conn.Write([]byte(responseHeaders))
+        conn.Write(htmlResp)
+        return
+    }
+
+    // OLD logic (existing RelayCell handling) remains unchanged below:
+    relayCell, err := ParseRelayCell(data)
+    if err != nil {
+        log.Printf("[%s] Error parsing RelayCell: %v\n", n.ID, err)
+        return
+    }
+    fmt.Printf("%+v\n", relayCell)
+}
 }
 
 // Stop closes the node's listener and waits for goroutines to finish
@@ -275,3 +254,113 @@ func getEnv(key, fallback string) string {
 func getenv(_ string) string {
     return "" // you can do: return os.Getenv(key)
 }
+
+// isHTTPRequest checks if the incoming data starts with "GET "
+func isHTTPRequest(data []byte) bool {
+    return len(data) > 4 && strings.HasPrefix(string(data), "GET ")
+}
+
+// parseOnionPath extracts "9005.onion" from "GET /9005.onion HTTP/1.1"
+func parseOnionPath(data []byte) string {
+    // Read only the first line: "GET /9005.onion HTTP/1.1"
+    scanner := bufio.NewScanner(strings.NewReader(string(data)))
+    if !scanner.Scan() {
+        return ""
+    }
+    line := scanner.Text() // e.g. "GET /9005.onion HTTP/1.1"
+
+    parts := strings.Split(line, " ")
+    // parts[0] = "GET", parts[1] = "/9005.onion", parts[2] = "HTTP/1.1"
+    if len(parts) < 2 {
+        return ""
+    }
+    path := parts[1] // "/9005.onion"
+    path = strings.TrimPrefix(path, "/") // remove leading slash -> "9005.onion"
+    return path
+}
+
+// fetchOnionViaCircuit is a simplified snippet that
+// builds a circuit, sends a request, and returns the HTML response.
+func (n *Node) fetchOnionViaCircuit(onion string) ([]byte, error) {
+    known := []int{9000, 9001, 9002, 9003, 9004, 9005}
+    circuitLength := 3
+    if circuitLength > len(known) {
+        circuitLength = len(known)
+    }
+
+    nodes, err := BuildCircuit(known, circuitLength)
+    if err != nil {
+        return nil, fmt.Errorf("build circuit: %v", err)
+    }
+
+    // Start nodes and handle errors
+    for _, nd := range nodes {
+        go func(node *Node) {
+            if err := node.Start(); err != nil {
+                log.Printf("Failed to start node %s: %v", node.ID, err)
+            }
+        }(nd)
+    }
+
+    // Wait briefly for nodes to start
+    time.Sleep(1 * time.Second)
+
+    // Dial entry node
+    entryNode := nodes[0]
+    entryAddr := fmt.Sprintf("127.0.0.1:%d", entryNode.Port)
+    conn, err := net.DialTimeout("tcp", entryAddr, 2*time.Second)
+    if err != nil {
+        // Stop all nodes on failure
+        for _, nd := range nodes {
+            nd.Stop()
+        }
+        return nil, fmt.Errorf("dial entry node: %v", err)
+    }
+    defer conn.Close()
+
+    // Set up the NextAddr for the entry node
+    var nextAddr string
+    if len(nodes) > 1 {
+        nextAddr = fmt.Sprintf("127.0.0.1:%d", nodes[1].Port)
+    }
+
+    // Prepare the request cell
+    requestCell := &RelayCell{
+        PrevAddr:      "",
+        NextAddr:      nextAddr,
+        Payload:       []byte(onion),
+        IsExitRequest: (len(nodes) == 1),
+    }
+
+    // Serialize and send the request
+    data, err := requestCell.Serialize()
+    if err != nil {
+        return nil, fmt.Errorf("serialize: %v", err)
+    }
+    if _, err := conn.Write(data); err != nil {
+        return nil, fmt.Errorf("write entry node: %v", err)
+    }
+
+    // Read the response
+    buf := make([]byte, 4096)
+    conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+    nBytes, err := conn.Read(buf)
+    if err != nil {
+        return nil, fmt.Errorf("read from entry node: %v", err)
+    }
+    respCell, err := ParseRelayCell(buf[:nBytes])
+    if err != nil {
+        return nil, fmt.Errorf("parse relay cell: %v", err)
+    }
+    if !respCell.IsExitResponse {
+        return nil, fmt.Errorf("did not receive exit response cell")
+    }
+
+    // Stop all nodes after the request
+    for _, nd := range nodes {
+        nd.Stop()
+    }
+
+    return respCell.Payload, nil
+}
+
