@@ -90,11 +90,24 @@ func forwardToAddress(cell *RelayCell, addr string) error {
 }
 
 // SetupLogging configures log output to go to both a file and stdout (optional).
+// SetupLogging configures log output to go to both a file and stdout.
 func SetupLogging(filename string) {
-    // open log file
-    logFile, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+    // Ensure the logs directory exists
+    logsDir := "logs"
+    if _, err := os.Stat(logsDir); os.IsNotExist(err) {
+        err := os.Mkdir(logsDir, 0755)
+        if err != nil {
+            log.Fatalf("Failed to create logs directory: %v", err)
+        }
+    }
+
+    // Prepend logs directory to filename
+    filepath := fmt.Sprintf("%s/%s", logsDir, filename)
+
+    // Open log file
+    logFile, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
     if err != nil {
-        log.Fatalf("Failed to open log file %s: %v", filename, err)
+        log.Fatalf("Failed to open log file %s: %v", filepath, err)
     }
 
     // Create multi-writer for stdout + file
@@ -102,3 +115,4 @@ func SetupLogging(filename string) {
     log.SetOutput(mw)
     log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 }
+
