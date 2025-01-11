@@ -13,6 +13,8 @@ import (
 func main() {
     // Read config
     cfg := config.GetConfig()
+	// fmt.Printf("Config: %+v\n", cfg)
+
 
     // Seed random
     rand.Seed(time.Now().UnixNano())

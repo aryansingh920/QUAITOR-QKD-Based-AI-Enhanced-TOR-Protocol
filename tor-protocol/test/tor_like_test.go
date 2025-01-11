@@ -44,3 +44,22 @@ func TestTorLikeNetwork(t *testing.T) {
         n.Stop()
     }
 }
+
+
+func TestBuildCircuit(t *testing.T) {
+    nodes := []*protocol.Node{
+        {ID: "Node1", Port: 9001},
+        {ID: "Node2", Port: 9002},
+        {ID: "Node3", Port: 9003},
+    }
+    circuit, err := protocol.BuildCircuit(nodes, 2)
+    if err != nil {
+        t.Fatalf("Unexpected error: %v", err)
+    }
+    if len(circuit) != 2 {
+        t.Errorf("Expected 2 nodes in the circuit, got %d", len(circuit))
+    }
+    if circuit[0].Role != protocol.EntryNode || circuit[1].Role != protocol.ExitNode {
+        t.Errorf("Incorrect roles assigned: %+v", circuit)
+    }
+}
