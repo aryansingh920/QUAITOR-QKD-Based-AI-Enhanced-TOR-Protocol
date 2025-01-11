@@ -1,3 +1,13 @@
+/*
+Created on 11/01/2025
+
+@author: Aryan
+
+Filename: config.go
+
+Relative Path: tor-protocol/config/config.go
+*/
+
 package config
 
 import (

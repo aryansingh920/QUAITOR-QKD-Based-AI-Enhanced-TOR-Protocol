@@ -1,3 +1,13 @@
+/*
+Created on 11/01/2025
+
+@author: Aryan
+
+Filename: protocol.go
+
+Relative Path: tor-protocol/protocol/protocol.go
+*/
+
 package protocol
 
 import (

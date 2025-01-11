@@ -1,3 +1,13 @@
+/*
+Created on 11/01/2025
+
+@author: Aryan
+
+Filename: node.go
+
+Relative Path: tor-protocol/protocol/node.go
+*/
+
 package protocol
 
 import (

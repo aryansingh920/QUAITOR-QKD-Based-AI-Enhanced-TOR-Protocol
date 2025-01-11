@@ -1,3 +1,12 @@
+/*
+Created on 11/01/2025
+
+@author: Aryan
+
+Filename: main.go
+
+Relative Path: tor-protocol/main.go
+*/
 package main
 
 import (
