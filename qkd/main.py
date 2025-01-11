@@ -1,13 +1,14 @@
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import random_statevector
+from qiskit.visualization import plot_histogram
+import matplotlib.pyplot as plt
 import numpy as np
 import random
 import argparse
 import base64
 import json
 import os
-
 
 class QKD:
     def __init__(self):
@@ -116,19 +117,92 @@ class QKD:
         if os.path.exists(self.key_file):
             os.remove(self.key_file)
 
+    def show_circuits(self, key_length=4):
+        """Generate and display example quantum circuits for the BB84 protocol"""
+        # Generate example bits and bases
+        alice_bits = [random.randint(0, 1) for _ in range(key_length)]
+        alice_bases = [random.randint(0, 1) for _ in range(key_length)]
+        bob_bases = [random.randint(0, 1) for _ in range(key_length)]
+
+        circuits = []
+        for i, (bit, alice_basis, bob_basis) in enumerate(zip(alice_bits, alice_bases, bob_bases)):
+            # Create quantum circuit
+            qr = QuantumRegister(1, 'q')
+            cr = ClassicalRegister(1, 'c')
+            qc = QuantumCircuit(qr, cr)
+
+            # Add labels
+            qc.name = f"Qubit {i+1}"
+
+            # Prepare Alice's qubit
+            if bit == 1:
+                qc.x(qr)  # If bit is 1, flip the qubit
+            if alice_basis == 1:
+                qc.h(qr)  # If using X basis, apply Hadamard
+
+            # Add barrier to show separation between Alice's preparation and Bob's measurement
+            qc.barrier()
+
+            # Bob's measurement basis
+            if bob_basis == 1:
+                qc.h(qr)  # If measuring in X basis, apply Hadamard
+
+            qc.measure(qr, cr)
+            circuits.append(qc)
+
+        # Create a figure with subplots for each circuit
+        fig, axes = plt.subplots(key_length, 1, figsize=(10, 3*key_length))
+        if key_length == 1:
+            axes = [axes]
+
+        for i, (circ, ax) in enumerate(zip(circuits, axes)):
+            # Draw the circuit
+            circ.draw('mpl', ax=ax)
+
+            # Add information about bases and bits
+            title = (f"Qubit {i+1}: Alice's bit = {alice_bits[i]}, "
+                     f"Alice's basis = {'X' if alice_bases[i] else 'Z'}, "
+                     f"Bob's basis = {'X' if bob_bases[i] else 'Z'}")
+            ax.set_title(title)
+
+        plt.tight_layout()
+        plt.show()
+
+        # Print summary
+        print("\nBB84 Protocol Summary:")
+        print("---------------------")
+        for i in range(key_length):
+            shared = "✓" if alice_bases[i] == bob_bases[i] else "✗"
+            print(f"Qubit {i+1}:")
+            print(f"  Alice's bit: {alice_bits[i]}")
+            print(f"  Alice's basis: {'X' if alice_bases[i] else 'Z'}")
+            print(f"  Bob's basis: {'X' if bob_bases[i] else 'Z'}")
+            print(f"  Bases match: {shared}")
+            print()
 
 def main():
     parser = argparse.ArgumentParser(
         description='Quantum Key Distribution Encryption/Decryption')
-    parser.add_argument(
-        '--mode', choices=['encrypt', 'decrypt', 'clear-key'], required=True, help='Operation mode')
+    parser.add_argument('--mode', choices=['encrypt', 'decrypt', 'clear-key', 'show-circuits'],
+                        required=True, help='Operation mode')
     parser.add_argument('--message', help='Message to encrypt/decrypt')
     parser.add_argument('--key-length', type=int, default=256,
                         help='Length of quantum key to generate')
+    parser.add_argument('--viz-qubits', type=int, default=4,
+                        help='Number of qubits to visualize (only for show-circuits mode)')
 
     args = parser.parse_args()
 
     qkd = QKD()
+
+    if args.mode == 'show-circuits':
+        qkd.show_circuits(args.viz_qubits)
+        return
+
+    elif args.mode == 'clear-key':
+        qkd.clear_saved_key()
+        print("Saved quantum key cleared.")
+        return
 
     if args.mode == 'clear-key':
         qkd.clear_saved_key()

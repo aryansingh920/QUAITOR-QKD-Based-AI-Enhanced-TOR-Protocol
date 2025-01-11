@@ -19,3 +19,5 @@ go test ./... -bench=. -benchmem -v
 python main.py --mode clear-key
 python main.py --mode encrypt --message "Hello Quantum World" --key-length 256
 python main.py --mode decrypt --message "Ubc95VQoTasmXYqI3JK5Cv6FTA==" --key-length 256
+python main.py --mode show-circuits
+python main.py --mode show-circuits --viz-qubits 6
