@@ -1,7 +1,29 @@
 package config
 
-const (
-    ServerAddress = "localhost:9000"
-    Relay1Address = "localhost:9001"
-    Relay2Address = "localhost:9002"
+import (
+	"os"
+	"strconv"
 )
+
+type Config struct {
+    Ports             []int
+    RandomPathLength  int
+}
+
+// GetConfig reads some basic configuration from environment variables or provides defaults.
+func GetConfig() *Config {
+    // Example default ports
+    defaultPorts := []int{9001, 9002, 9003, 9004, 9005}
+
+    // Optional: read from ENV, or just keep default
+    strPathLength := os.Getenv("TOR_LIKE_PATH_LENGTH")
+    pathLength, err := strconv.Atoi(strPathLength)
+    if err != nil {
+        pathLength = 0 // 0 indicates random
+    }
+
+    return &Config{
+        Ports:            defaultPorts,
+        RandomPathLength: pathLength,
+    }
+}

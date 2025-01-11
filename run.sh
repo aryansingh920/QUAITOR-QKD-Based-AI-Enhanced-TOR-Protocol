@@ -9,3 +9,7 @@ go build ./...
 go list -m
 
 go run main.go
+
+go clean -modcache
+
+go test ./...
