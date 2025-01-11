@@ -16,8 +16,10 @@ import (
 )
 
 type Config struct {
-    Ports             []int
-    RandomPathLength  int
+    Ports              []int
+    RandomPathLength   int
+    EnableRandomTraffic bool
+    RandomTrafficInterval int // in seconds
 }
 
 // GetConfig reads some basic configuration from environment variables or provides defaults.
@@ -32,8 +34,24 @@ func GetConfig() *Config {
         pathLength = 0 // 0 indicates random
     }
 
+    // Enable or disable random traffic
+    enableRandomTrafficStr := os.Getenv("TOR_LIKE_ENABLE_RANDOM_TRAFFIC")
+    enableRandomTraffic := false
+    if enableRandomTrafficStr == "1" || enableRandomTrafficStr == "true" {
+        enableRandomTraffic = true
+    }
+
+    // Random traffic interval
+    randomTrafficIntervalStr := os.Getenv("TOR_LIKE_RANDOM_TRAFFIC_INTERVAL")
+    randomTrafficInterval, err := strconv.Atoi(randomTrafficIntervalStr)
+    if err != nil || randomTrafficInterval <= 0 {
+        randomTrafficInterval = 10 // default to 10 seconds if not set properly
+    }
+
     return &Config{
-        Ports:            defaultPorts,
-        RandomPathLength: pathLength,
+        Ports:                 defaultPorts,
+        RandomPathLength:      pathLength,
+        EnableRandomTraffic:   enableRandomTraffic,
+        RandomTrafficInterval: randomTrafficInterval,
     }
 }

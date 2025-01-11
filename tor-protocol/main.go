@@ -24,7 +24,6 @@ func main() {
     cfg := config.GetConfig()
 	// fmt.Printf("Config: %+v\n", cfg)
 
-
     // Seed random
     rand.Seed(time.Now().UnixNano())
 
@@ -42,6 +41,14 @@ func main() {
 
     // Give the nodes a moment to start up
     time.Sleep(2 * time.Second)
+
+    // OPTIONAL: Start generating random/dummy traffic among nodes (if enabled in config)
+    if cfg.EnableRandomTraffic {
+        log.Println("Starting random traffic generation among nodes...")
+        for i := range nodes {
+            go nodes[i].GenerateRandomTraffic(cfg.RandomTrafficInterval)
+        }
+    }
 
     // Build a random path of length X (from config, or random 2-5, e.g.)
     pathLength := cfg.RandomPathLength
@@ -73,10 +80,10 @@ func main() {
     // Keep the program running for demonstration. In a real scenario,
     // you'd let the nodes continue listening or gracefully shut down.
     time.Sleep(5 * time.Second)
-    fmt.Println("Shutting down...")
+    // fmt.Println("Shutting down...")
 
     // Stop all nodes
-    for _, n := range nodes {
-        n.Stop()
-    }
+    // for _, n := range nodes {
+    //     n.Stop()
+    // }
 }

@@ -72,6 +72,9 @@ func SendThroughCircuit(circuit []*Node, message string) error {
         prevNext = fmt.Sprintf("127.0.0.1:%d", nextNode.Port)
     }
 
+    // In a real Tor, you'd encrypt the message with the exit node's key, then wrap in the middle node keys, etc.
+    // We skip real encryption here but keep the placeholders.
+
     // Create the final RelayCell for the entry node
     cell := RelayCell{
         NextAddr: prevNext,
@@ -131,7 +134,6 @@ func forwardToNextNode(cell *RelayCell) error {
 func ParseRelayCell(data []byte) (*RelayCell, error) {
     return DeserializeCell(data)
 }
-
 
 // BootstrapNodes creates a list of Node instances from the config
 func BootstrapNodes(cfg *config.Config) []*Node {

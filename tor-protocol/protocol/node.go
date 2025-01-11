@@ -13,6 +13,7 @@ package protocol
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -36,6 +37,10 @@ type Node struct {
     listener   net.Listener
     stopCh     chan struct{}
     wg         sync.WaitGroup
+
+    // For demonstration, we'll generate ephemeral keys per node
+    ephemeralPublicKey  []byte
+    ephemeralPrivateKey []byte
 }
 
 // Start begins listening on the specified port
@@ -46,6 +51,14 @@ func (n *Node) Start() error {
     n.listener, err = net.Listen("tcp", addr)
     if err != nil {
         return fmt.Errorf("Node %s failed to listen on port %d: %v", n.ID, n.Port, err)
+    }
+
+    // Generate ephemeral key pair for this node
+    n.ephemeralPublicKey, n.ephemeralPrivateKey, err = GenerateEphemeralKeyPair()
+    if err != nil {
+        log.Printf("[%s] Failed to generate ephemeral keys: %v\n", n.ID, err)
+    } else {
+        log.Printf("[%s] Ephemeral keys generated successfully\n", n.ID)
     }
 
     log.Printf("[%s] %s node listening on %s\n", n.ID, n.Role, addr)
@@ -108,6 +121,10 @@ func (n *Node) handleConnection(conn net.Conn) {
             return
         }
 
+        // In a real Tor, we'd decrypt layers here using ephemeral keys.
+        // For demonstration, skip actual decrypt but show placeholder.
+        // e.g., decryptedPayload := DecryptPayload(relayCell.Payload, n.ephemeralPrivateKey)
+
         // If this is the exit node, we "finalize" the message (like sending to the destination)
         // For demonstration, we just log it
         if n.Role == ExitNode {
@@ -123,18 +140,41 @@ func (n *Node) handleConnection(conn net.Conn) {
     }
 }
 
+// GenerateRandomTraffic simulates dummy traffic to a random node at intervals.
+// This is purely for demonstration to mimic "cover traffic" or "dummy" traffic.
+func (n *Node) GenerateRandomTraffic(intervalSeconds int) {
+    ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
+    defer ticker.Stop()
 
-// BootstrapNodes creates a list of Node instances from the config
-// func BootstrapNodes(cfg *Config) []*Node {
-//     nodes := make([]*Node, len(cfg.Ports))
-//     for i, port := range cfg.Ports {
-//         node := &Node{
-//             ID:      fmt.Sprintf("Node%d", i+1),
-//             Role:    RelayNode, // default to RELAY, roles will be reassigned upon path creation
-//             Port:    port,
-//             stopCh:  make(chan struct{}),
-//         }
-//         nodes[i] = node
-//     }
-//     return nodes
-// }
+    for {
+        select {
+        case <-ticker.C:
+            // pick a random message length and random node
+            randomMessage := generateRandomString(rand.Intn(20) + 5) // 5-25 chars
+            randomPort := 9001 + rand.Intn(10)                       // from default range
+            relayCell := &RelayCell{
+                NextAddr: fmt.Sprintf("127.0.0.1:%d", randomPort),
+                Payload:  []byte("[DUMMY_TRAFFIC] " + randomMessage),
+            }
+            // Attempt to dial and send
+            err := forwardToNextNode(relayCell)
+            if err != nil {
+                log.Printf("[%s] Random traffic error: %v\n", n.ID, err)
+            } else {
+                log.Printf("[%s] Sent dummy traffic to %d\n", n.ID, randomPort)
+            }
+        case <-n.stopCh:
+            return
+        }
+    }
+}
+
+// generateRandomString creates a pseudo-random string of length n.
+func generateRandomString(n int) string {
+    letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    b := make([]rune, n)
+    for i := range b {
+        b[i] = letters[rand.Intn(len(letters))]
+    }
+    return string(b)
+}

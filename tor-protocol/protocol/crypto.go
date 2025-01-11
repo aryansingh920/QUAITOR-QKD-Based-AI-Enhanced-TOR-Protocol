@@ -12,6 +12,7 @@ package protocol
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 )
@@ -80,4 +81,36 @@ func DeserializeCell(data []byte) (*RelayCell, error) {
         NextAddr: string(nextAddrBytes),
         Payload:  payloadBytes,
     }, nil
+}
+
+// GenerateEphemeralKeyPair creates a dummy ephemeral key pair for demonstration.
+// In a real implementation, you'd use something like X25519, curve25519, or RSA, etc.
+func GenerateEphemeralKeyPair() ([]byte, []byte, error) {
+    // For demonstration, just generate 32 random bytes for each "key".
+    public := make([]byte, 32)
+    private := make([]byte, 32)
+
+    _, errPub := rand.Read(public)
+    _, errPriv := rand.Read(private)
+
+    if errPub != nil || errPriv != nil {
+        return nil, nil, fmt.Errorf("error generating ephemeral key material")
+    }
+
+    return public, private, nil
+}
+
+// EncryptPayload would symmetrically or asymmetrically encrypt data in a real Tor system.
+// We just provide a placeholder here.
+func EncryptPayload(payload, key []byte) []byte {
+    // Placeholder encryption: in practice you'd do real encryption using ephemeralPublicKey
+    // For demonstration, just return payload as-is
+    return payload
+}
+
+// DecryptPayload would symmetrically or asymmetrically decrypt data in a real Tor system.
+// We just provide a placeholder here.
+func DecryptPayload(ciphertext, key []byte) []byte {
+    // Placeholder decryption: in practice you'd do real decryption using ephemeralPrivateKey
+    return ciphertext
 }
