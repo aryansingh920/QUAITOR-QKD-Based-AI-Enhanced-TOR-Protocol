@@ -13,3 +13,5 @@ go run main.go
 go clean -modcache
 
 go test ./...
+
+go test ./... -bench=. -benchmem -v
