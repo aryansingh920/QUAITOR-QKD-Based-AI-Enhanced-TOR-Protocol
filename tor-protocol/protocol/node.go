@@ -272,6 +272,6 @@ func getEnv(key, fallback string) string {
     }
     return val
 }
-func getenv(key string) string {
+func getenv(_ string) string {
     return "" // you can do: return os.Getenv(key)
 }
