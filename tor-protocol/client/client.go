@@ -2,7 +2,7 @@ package client
 
 import (
 	"fmt"
-	"tor-protocol/utils/protocol"
+	"tor-protocol/protocol"
 )
 
 func SendRequest() error {

@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"tor-protocol/utils/protocol"
+	"tor-protocol/protocol"
 
 	"github.com/gofiber/fiber/v2"
 )

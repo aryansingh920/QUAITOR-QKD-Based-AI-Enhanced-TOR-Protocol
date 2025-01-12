@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"tor-protocol/utils/protocol"
+	"tor-protocol/protocol"
 
 	"github.com/gofiber/fiber/v2"
 )
