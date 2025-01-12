@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"log"
 	"tor-protocol/controllers"
 	"tor-protocol/middleware"
 
@@ -9,6 +10,12 @@ import (
 
 func SetupRoutes(app *fiber.App) {
 	api := app.Group("/")
+
+	//print the path of the request
+	app.Use(func(c *fiber.Ctx) error {
+		log.Println("Request URL:", c.OriginalURL())
+		return c.Next()
+	})
 
 	// Middleware for custom headers
 	app.Use(middleware.CustomHeaderMiddleware())
