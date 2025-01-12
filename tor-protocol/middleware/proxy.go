@@ -2,56 +2,36 @@ package middleware
 
 import (
 	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/proxy"
 )
 
-// ProxyOnionRequests handles requests to *.onion and forwards them dynamically
-func ProxyOnionRequests(c *fiber.Ctx) error {
-	// Extract port from the .onion path
-	onionPath := c.Params("*") // Extracts the dynamic part of *.onion
-	parts := strings.Split(onionPath, ".")
-	if len(parts) != 2 || parts[1] != "onion" {
-		return c.Status(fiber.StatusBadRequest).SendString("Invalid .onion path")
-	}
+// ProxyMiddleware handles forwarding requests to the appropriate server based on the `.onion` path.
+func ProxyMiddleware(c *fiber.Ctx) error {
+	// Extract the port (e.g., "9005")
+	port := c.Params("port")
 
-	// Parse the target port
-	targetPort, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("Invalid port in .onion path")
-	}
+	// The remaining path after `.onion/`
+	pathAfterOnion := c.Params("*") // Could be empty if just "/9005.onion"
 
-	// Construct target URL
-	targetURL := fmt.Sprintf("http://127.0.0.1:%d/", targetPort)
-	log.Printf("Proxying request to %s", targetURL)
+	// Construct the target URL
+	// e.g., "http://127.0.0.1:9005/foo/bar"
+	target := fmt.Sprintf("http://127.0.0.1:%s/%s", port, pathAfterOnion)
 
-	// Forward request to target server
-	resp, err := http.Get(targetURL) // Sends a GET request to the target server
-	if err != nil {
-		log.Printf("Error proxying to %s: %v", targetURL, err)
-		return c.Status(fiber.StatusInternalServerError).SendString("Failed to reach target server")
-	}
-	defer resp.Body.Close()
+	// Forward the current Fiber context to the target
+	return proxy.Forward(target)(c)
+}
 
-	// Read and return the response from the target server
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("Error reading response from %s: %v", targetURL, err)
-		return c.Status(fiber.StatusInternalServerError).SendString("Error reading target response")
-	}
+// ProxyExactMiddleware handles requests with no trailing slash for `.onion` routes.
+func ProxyExactMiddleware(c *fiber.Ctx) error {
+	// Extract the port (e.g., "9005")
+	port := c.Params("port")
 
-	// Set headers from the target response (optional)
-	for key, values := range resp.Header {
-		for _, value := range values {
-			c.Set(key, value)
-		}
-	}
+	// Construct the target URL
+	// e.g., "http://127.0.0.1:9005/"
+	target := fmt.Sprintf("http://127.0.0.1:%s", port)
 
-	// Return the response to the original client
-	return c.Status(resp.StatusCode).Send(body)
+	// Forward the current Fiber context to the target
+	return proxy.Forward(target)(c)
 }
