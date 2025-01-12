@@ -2,3 +2,5 @@
 .vscode
 
 tor-protocol/logs
+
+tor-protocol/tmp
