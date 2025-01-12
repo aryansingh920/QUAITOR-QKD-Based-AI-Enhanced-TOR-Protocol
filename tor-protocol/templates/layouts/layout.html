@@ -1,18 +1,71 @@
 {{define "layout"}}
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>{{.Title}}</title>
-    <meta name="description" content="" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="" />
-  </head>
-  <body>
-    {{template "header" .}}
-    {{block "content" .}}Default Content{{end}}
-    <script src="" async defer></script>
-  </body>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Onion Site</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        header {
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 0.5em;
+            color: #00ff7f;
+        }
+
+        p {
+            font-size: 1.2em;
+            margin-bottom: 1.5em;
+        }
+
+        a {
+            color: #1e90ff;
+            text-decoration: none;
+            font-size: 1.1em;
+            border: 2px solid #1e90ff;
+            padding: 0.5em 1em;
+            border-radius: 5px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        a:hover {
+            background-color: #1e90ff;
+            color: #121212;
+        }
+
+        footer {
+            margin-top: 2em;
+            font-size: 0.9em;
+            color: #bbbbbb;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to the Hidden Haven {{.Title}}</h1>
+        <p>Your privacy matters. This is a secure and anonymous platform.</p>
+        <a href="#">Enter the Site</a>
+    </header>
+    <footer>
+        <p>&copy; 2025 Onion Network. All rights reserved.</p>
+    </footer>
+</body>
 </html>
+
 {{end}}

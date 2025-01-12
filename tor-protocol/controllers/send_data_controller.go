@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"log"
+	"strings"
 	"text/template"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,12 +31,30 @@ func renderTemplateToFiber(ctx *fiber.Ctx, tmplName string, data interface{}) er
 
 func HomeHandler(ctx *fiber.Ctx) error {
 	// Debugging: Log all loaded templates
-	for _, t := range tmpl.Templates() {
-		log.Println("Loaded template:", t.Name())
+	// for _, t := range tmpl.Templates() {
+	// 	log.Println("Loaded template:", t.Name())
+	// }
+
+	log.Println("Rendering Home Page")
+	log.Println("Request URL:", ctx.OriginalURL())
+	log.Println("Request Method:", ctx.Method())
+	log.Println("Request Path:", ctx.Path())
+	// log.Println("Request Query:", ctx.Query())
+	// log.Println("Request Body:", ctx.Body())
+
+	//path should contain .onion domain else it will return 404
+	if !strings.Contains(ctx.Path(), ".onion") {
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"Error": "404 Not Found"})
 	}
 
+	//remove / from the path
+	// ctx.Path()
+	// path := strings.TrimPrefix(ctx.Path(), "/")
+
+
+
 	data := map[string]interface{}{
-		"Title": "Home Page",
+		"Title": strings.TrimPrefix(ctx.Path(), "/"),
 		"Name":  "Aryan",
 	}
 	return renderTemplateToFiber(ctx, "layout", data)

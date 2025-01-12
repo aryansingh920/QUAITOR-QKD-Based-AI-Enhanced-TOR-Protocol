@@ -10,19 +10,17 @@ import (
 func SetupRoutes(app *fiber.App) {
 	api := app.Group("/")
 
+	// Middleware for custom headers
 	app.Use(middleware.CustomHeaderMiddleware())
 
+	// Handle `.onion` paths
+	app.Get("*.onion", controllers.HomeHandler)
+
 	// User routes
-	home := api.Group("/")
+	home := api.Group("/home")
 	home.Get("/", controllers.ReturnHome)
 
-	send_data := api.Group("/send_data")
+	// Default route
+	send_data := api.Group("/")
 	send_data.Get("/", controllers.HomeHandler)
-	
-
-	// Product routes with middleware
-	// product := api.Group("/product", middleware.AuthMiddleware)
-	// product.Get("/", controllers.GetProducts)
 }
-
-
