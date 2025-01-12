@@ -16,6 +16,10 @@ func SetupRoutes(app *fiber.App) {
 	home := api.Group("/")
 	home.Get("/", controllers.ReturnHome)
 
+	send_data := api.Group("/send_data")
+	send_data.Get("/", controllers.HomeHandler)
+	
+
 	// Product routes with middleware
 	// product := api.Group("/product", middleware.AuthMiddleware)
 	// product.Get("/", controllers.GetProducts)
