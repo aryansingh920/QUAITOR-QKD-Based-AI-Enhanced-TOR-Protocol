@@ -3,7 +3,10 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
 
 	"tor-protocol/client"
 	"tor-protocol/config"
@@ -16,40 +19,60 @@ import (
 )
 
 func ServerMain() {
-    // Initialize Fiber app
-    fmt.Printf("tor-protocol API\n")
+	// Load environment configuration
+	config.LoadConfig()
 
-    // Example usage of the client, optional
-    if err := client.SendRequest(); err != nil {
-        log.Printf("Error sending request: %v", err)
-    }
+	// Get current port
+	port := config.GetPort()
 
-    app := fiber.New()
+	// Set up logging to both terminal and file
+	logFilePath := filepath.Join("logs", fmt.Sprintf("server-%s.log", port))
+	if err := os.MkdirAll("logs", os.ModePerm); err != nil {
+		log.Fatalf("Failed to create logs directory: %v", err)
+	}
 
-    // Basic middlewares
-    app.Use(cors.New(cors.Config{
-        AllowOrigins:     "*", // Change to specific domains for better security
-        AllowMethods:     "GET,POST,PUT,DELETE",
-        AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-        ExposeHeaders:    "Content-Length",
-        AllowCredentials: true,
-    }))
-    app.Use(helmet.New())
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("Failed to open log file %s: %v", logFilePath, err)
+	}
+	defer logFile.Close()
 
-    // Optionally, you can rate-limit
-    // app.Use(limiter.New(limiter.Config{
-    //     Max:        10, // Max requests
-    //     Expiration: 30 * time.Second, // Time window
-    // }))
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(multiWriter)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-    // Load environment configuration
-    config.LoadConfig()
+	log.Printf("tor-protocol API started on port %s\n", port)
 
-    // Setup API routes
-    routers.SetupRoutes(app)
+	// Initialize Fiber app
+	app := fiber.New()
 
-    // Start server
-    port := config.GetPort()
-    log.Printf("Server running on port %s", port)
-    log.Fatal(app.Listen(":" + port))
+	// Basic middlewares
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "*", // For production, change to specific domains
+		AllowMethods:     "GET,POST,PUT,DELETE",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		ExposeHeaders:    "Content-Length",
+		AllowCredentials: true,
+	}))
+	app.Use(helmet.New())
+
+	// Optionally, you can rate-limit
+	// app.Use(limiter.New(limiter.Config{
+	//     Max:        10,                // Max requests
+	//     Expiration: 30 * time.Second,  // Time window
+	// }))
+
+	// Example usage of the client, optional
+	if err := client.SendRequest(); err != nil {
+		log.Printf("Error sending request: %v", err)
+	}
+
+	// Setup API routes
+	routers.SetupRoutes(app)
+
+	// Start server
+	log.Printf("Server running on port %s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Failed to start server on port %s: %v", port, err)
+	}
 }

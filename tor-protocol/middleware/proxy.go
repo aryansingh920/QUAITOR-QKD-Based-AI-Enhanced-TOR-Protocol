@@ -15,156 +15,160 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/proxy"
 )
 
-// Known network ports
-// You can adapt this to whatever known onion-like nodes (ports) you have.
 // Define port range for knownPorts generation
 const (
-    portStart = 8801
-    portEnd   = 8810
+	portStart = 8801
+	portEnd   = 8810
 )
 
 // getKnownPorts dynamically generates the list of known ports based on the range.
 func getKnownPorts() []int {
-    var ports []int
-    for p := portStart; p <= portEnd; p++ {
-        ports = append(ports, p)
-    }
-    return ports
+	var ports []int
+	for p := portStart; p <= portEnd; p++ {
+		ports = append(ports, p)
+	}
+	return ports
 }
 
-// ProxyMiddleware handles forwarding requests to the appropriate server based on the .onion path.
-// It supports multi-hop by embedding a route in the "X-Tor-Route" header.
+// ProxyMiddleware handles forwarding requests to the appropriate server based on the .onion path
+// or based on an existing X-Tor-Route header. It supports multi-hop by embedding a route in
+// the "X-Tor-Route" header.
 func ProxyMiddleware(c *fiber.Ctx) error {
-    // Current node's port (the one we are *running* on)
-    // e.g., 8807 if we started with `go run main.go 8807`
-    currentPort := config.GetPort()
+	// Current node's port (the one we are *running* on)
+	currentPort := config.GetPort()
 
-    // The requested final port from URL pattern /:port.onion/
-    finalPort := c.Params("port")
+	// The requested final port from URL pattern /:port.onion/
+	// or /:port/ if user visits /8805/ or /8805.onion
+	finalPort := c.Params("port")
 
-    // The path after the .onion e.g. "/foo"
-    pathAfterOnion := c.Params("*")
+	// The path after the .onion e.g. "/foo"
+	pathAfterOnion := c.Params("*")
 
-    // Retrieve the existing route from the header
-    existingRoute := c.Get("X-Tor-Route")
+	// Retrieve the existing route from the header (if any)
+	existingRoute := c.Get("X-Tor-Route")
 
-    var route []string
+	var route []string
 
-    if existingRoute == "" {
-        // No route yet => first node in the chain
-        // Build a random route that ends in finalPort, excluding currentPort
-        route = buildRandomRoute(currentPort, finalPort)
-        log.Printf("[Port %s] [ProxyMiddleware] Generated new route: %v\n", currentPort, route)
-    } else {
-        // There's already a route
-        route = strings.Split(existingRoute, ",")
-        log.Printf("[Port %s] [ProxyMiddleware] Existing route: %v\n", currentPort, route)
-    }
+	// 1) If there's no existingRoute, we create a brand new route that eventually ends in finalPort
+	if existingRoute == "" {
+		// Means this is the first node in the chain
+		route = buildRandomRoute(currentPort, finalPort)
+		log.Printf("[Port %s] [ProxyMiddleware] Generated new route: %v\n", currentPort, route)
+	} else {
+		// There's already a route
+		route = strings.Split(existingRoute, ",")
+		log.Printf("[Port %s] [ProxyMiddleware] Existing route: %v\n", currentPort, route)
+	}
 
-    // If for some reason there's nothing in the route (should not happen if built correctly),
-    // fallback to just finalPort
-    if len(route) == 0 {
-        route = []string{finalPort}
-    }
+	// Safety check
+	if len(route) == 0 {
+		// If for some reason route is empty, fallback to finalPort only
+		route = []string{finalPort}
+	}
 
-    // The next hop is always route[0]
-    nextHop := route[0]
-    // Remove this hop from the route
-    route = route[1:]
+	// The next hop is always route[0]
+	nextHop := route[0]
 
-    // The updated route (minus the hop we just used)
-    updatedRoute := strings.Join(route, ",")
+	log.Printf("[Port %s] Current X-Tor-Route: %s", currentPort, existingRoute)
+	log.Printf("[Port %s] Remaining Route: %v", currentPort, route)
+	log.Printf("[Port %s] Next Hop: %s", currentPort, nextHop)
 
-    // If nextHop is the final node, we just forward to that. Otherwise, we keep chaining.
-    target := fmt.Sprintf("http://127.0.0.1:%s/%s", nextHop, pathAfterOnion)
+	// Remove this hop from the route
+	route = route[1:]
 
-    // Log the hop
-    log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
-        currentPort, c.IP(), nextHop, route)
+	// The updated route for the next node
+	updatedRoute := strings.Join(route, ",")
 
-    // Set the new route in the request header so the next node sees it
-    c.Request().Header.Set("X-Tor-Route", updatedRoute)
+	// Build the forwarding URL
+	//   e.g. "http://127.0.0.1:8810/foo"
+	//   pathAfterOnion might be "" if the user visited "/8805.onion/"
+	//   so effectively forwarding to 8810/
+	target := fmt.Sprintf("http://127.0.0.1:%s/%s", nextHop, pathAfterOnion)
 
-    // Forward to next hop
-    return proxy.Forward(target)(c)
+	// Log the hop
+	log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+		currentPort, c.IP(), nextHop, route)
+
+	// Set the new route in the request header so the next node sees it
+	c.Request().Header.Set("X-Tor-Route", updatedRoute)
+
+	log.Printf("[Port %s] Updated X-Tor-Route: %s", currentPort, updatedRoute)
+
+	// Forward to next hop
+	return proxy.Forward(target)(c)
 }
 
 // ProxyExactMiddleware handles requests with no trailing slash for .onion routes.
 func ProxyExactMiddleware(c *fiber.Ctx) error {
-    currentPort := config.GetPort()
-    finalPort := c.Params("port")
+	currentPort := config.GetPort()
+	finalPort := c.Params("port")
 
-    existingRoute := c.Get("X-Tor-Route")
-    var route []string
+	existingRoute := c.Get("X-Tor-Route")
+	var route []string
 
-    if existingRoute == "" {
-        // Build a new route
-        route = buildRandomRoute(currentPort, finalPort)
-        log.Printf("[Port %s] [ProxyExactMiddleware] Generated new route: %v\n", currentPort, route)
-    } else {
-        // There's already a route
-        route = strings.Split(existingRoute, ",")
-        log.Printf("[Port %s] [ProxyExactMiddleware] Existing route: %v\n", currentPort, route)
-    }
+	if existingRoute == "" {
+		route = buildRandomRoute(currentPort, finalPort)
+		log.Printf("[Port %s] [ProxyExactMiddleware] Generated new route: %v\n", currentPort, route)
+	} else {
+		route = strings.Split(existingRoute, ",")
+		log.Printf("[Port %s] [ProxyExactMiddleware] Existing route: %v\n", currentPort, route)
+	}
 
-    if len(route) == 0 {
-        route = []string{finalPort}
-    }
+	if len(route) == 0 {
+		route = []string{finalPort}
+	}
 
-    nextHop := route[0]
-    route = route[1:]
-    updatedRoute := strings.Join(route, ",")
+	nextHop := route[0]
+	route = route[1:]
+	updatedRoute := strings.Join(route, ",")
 
-    // If nextHop is the final node, we just forward
-    target := fmt.Sprintf("http://127.0.0.1:%s", nextHop)
+	target := fmt.Sprintf("http://127.0.0.1:%s", nextHop)
 
-    log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
-        currentPort, c.IP(), nextHop, route)
+	log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+		currentPort, c.IP(), nextHop, route)
 
-    c.Request().Header.Set("X-Tor-Route", updatedRoute)
-    return proxy.Forward(target)(c)
+	c.Request().Header.Set("X-Tor-Route", updatedRoute)
+	return proxy.Forward(target)(c)
 }
 
-// buildRandomRoute constructs a random route of length 1–3 intermediate hops (you can tweak this)
-// excluding the currentPort and excluding finalPort as an intermediate hop.
+// buildRandomRoute constructs a random route (1–3 intermediate hops), excluding the currentPort
+// and excluding finalPort as an intermediate hop. The final hop is always finalPort.
 func buildRandomRoute(currentPort, finalPort string) []string {
-    // Convert finalPort from string to int
-    fPort, _ := strconv.Atoi(finalPort)
-    cPort, _ := strconv.Atoi(currentPort)
+	fPort, _ := strconv.Atoi(finalPort)
+	cPort, _ := strconv.Atoi(currentPort)
 
-    // We don't want the finalPort as an intermediate node,
-    // and we don't want to re-use the currentPort as an intermediate node
-    var available []int
-    allPorts := getKnownPorts()
-    for _, p := range allPorts {
-        if p != fPort && p != cPort {
-            available = append(available, p)
-        }
-    }
+	// Generate the known ports list
+	allPorts := getKnownPorts()
 
-    // Shuffle the available ports
-    rand.Seed(time.Now().UnixNano())
-    rand.Shuffle(len(available), func(i, j int) {
-        available[i], available[j] = available[j], available[i]
-    })
+	// Filter out currentPort and finalPort from available ports
+	var available []int
+	for _, p := range allPorts {
+		if p != fPort && p != cPort {
+			available = append(available, p)
+		}
+	}
 
-    // Pick random number of hops: 1–3
-    numHops := rand.Intn(3) + 1
-    if numHops > len(available) {
-        numHops = len(available)
-    }
+	// Shuffle the available ports
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(available), func(i, j int) {
+		available[i], available[j] = available[j], available[i]
+	})
 
-    // intermediateHops are the random selection
-    intermediateHops := available[:numHops]
+	// Pick random number of hops: 1–3
+	numHops := rand.Intn(3) + 1
+	if numHops > len(available) {
+		numHops = len(available)
+	}
 
-    // Build the route array
-    route := make([]string, 0, numHops+1)
-    for _, hop := range intermediateHops {
-        route = append(route, fmt.Sprintf("%d", hop))
-    }
+	// Select intermediate hops
+	intermediateHops := available[:numHops]
 
-    // Finally, append the final port as the last hop
-    route = append(route, finalPort)
+	// Build the route array (all intermediate hops + final port)
+	route := make([]string, 0, numHops+1)
+	for _, hop := range intermediateHops {
+		route = append(route, fmt.Sprintf("%d", hop))
+	}
+	route = append(route, finalPort)
 
-    return route
+	return route
 }
