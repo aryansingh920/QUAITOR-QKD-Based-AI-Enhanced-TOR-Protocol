@@ -4,6 +4,8 @@ package routers
 import (
 	"log"
 
+	"tor-protocol/config"
+
 	"tor-protocol/controllers"
 	"tor-protocol/middleware"
 
@@ -25,7 +27,7 @@ func SetupRoutes(app *fiber.App) {
     // If X-Tor-Route is already set, we know it's an in-progress multi-hop.
     // We'll skip normal route parsing and forward again via ProxyMiddleware.
     app.All("*", func(c *fiber.Ctx) error {
-        existingRoute := c.Get("X-Tor-Route")
+        existingRoute := c.Get(config.CustomHeaderKey)
         if existingRoute != "" {
             return middleware.ProxyMiddleware(c)
         }

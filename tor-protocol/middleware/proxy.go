@@ -17,8 +17,8 @@ import (
 
 // Define port range for knownPorts generation
 const (
-	portStart = 8801
-	portEnd   = 8820
+	portStart = config.PortStart
+	portEnd   = config.PortEnd
 )
 
 // getKnownPorts dynamically generates the list of known ports based on the range.
@@ -34,7 +34,7 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     currentPort := config.GetPort()
     finalPort := c.Params("port")
     pathAfterOnion := c.Params("*")
-    existingRoute := c.Get("X-Tor-Route")
+    existingRoute := c.Get(config.CustomHeaderKey)
     var route []string
 
     if existingRoute == "" {
@@ -53,17 +53,17 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     route = route[1:]
     updatedRoute := strings.Join(route, ",")
 
-    target := fmt.Sprintf("http://127.0.0.1:%s/%s", nextHop, pathAfterOnion)
+    target := fmt.Sprintf("%s:%s/%s",config.DefaultLink, nextHop, pathAfterOnion)
 
     // Simulate processing delay at the current node
-    randomDelay := time.Duration(rand.Intn(5000)) * time.Millisecond // Up to 5 seconds
+    randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond // Up to 5 seconds
     log.Printf("[Port %s] Adding random delay: %s", currentPort, randomDelay)
     time.Sleep(randomDelay)
 
     log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
         currentPort, c.IP(), nextHop, route)
 
-    c.Request().Header.Set("X-Tor-Route", updatedRoute)
+    c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
     return proxy.Forward(target)(c)
 }
 
@@ -72,7 +72,7 @@ func ProxyExactMiddleware(c *fiber.Ctx) error {
 	currentPort := config.GetPort()
 	finalPort := c.Params("port")
 
-	existingRoute := c.Get("X-Tor-Route")
+	existingRoute := c.Get(config.CustomHeaderKey)
 	var route []string
 
 	if existingRoute == "" {
@@ -91,12 +91,12 @@ func ProxyExactMiddleware(c *fiber.Ctx) error {
 	route = route[1:]
 	updatedRoute := strings.Join(route, ",")
 
-	target := fmt.Sprintf("http://127.0.0.1:%s", nextHop)
+	target := fmt.Sprintf("%s:%s",config.DefaultLink, nextHop)
 
 	log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
 		currentPort, c.IP(), nextHop, route)
 
-	c.Request().Header.Set("X-Tor-Route", updatedRoute)
+	c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
 	return proxy.Forward(target)(c)
 }
 

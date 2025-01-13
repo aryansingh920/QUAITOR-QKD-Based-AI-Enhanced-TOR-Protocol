@@ -6,6 +6,13 @@ import (
 	"os"
 )
 
+const (
+	PortStart = 8801 
+	PortEnd   = 8820 
+    DefaultLink = "http://127.0.0.1"
+    RandomDelayUpperLimit = 5000
+    CustomHeaderKey = "X-Tor-Route"
+)
 
 
 func LoadConfig() {
