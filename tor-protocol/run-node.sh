@@ -14,8 +14,11 @@ fi
 # end tell
 # EOF
 
+export start_port=8801
+export end_port=8805
+
 # Open additional tabs for ports 9002 to 9010
-for port in {8801..8820}; do
+for ((port=start_port; port<=end_port; port++)); do
   osascript <<EOF
 tell application "Terminal"
     activate

@@ -20,7 +20,8 @@ import (
 
 func ServerMain() {
 	// Load environment configuration
-	config.LoadConfig()
+	// fmt.Println("At ServerMain: LoadConfig")
+	// config.LoadConfig()
 
 	// Get current port
 	port := config.GetPort()

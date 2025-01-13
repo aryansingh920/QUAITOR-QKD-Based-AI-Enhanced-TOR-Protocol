@@ -2,22 +2,43 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strconv"
 )
 
-const (
+var (
 	PortStart = 8801 
-	PortEnd   = 8820 
+	PortEnd  = 8805 
     DefaultLink = "http://127.0.0.1"
     RandomDelayUpperLimit = 5000
     CustomHeaderKey = "X-Tor-Route"
 )
 
 
+
+
 func LoadConfig() {
+    var err error
     // Load environment variables or defaults
     // You can extend this to parse .env files with e.g. github.com/joho/godotenv if desired
+
+
+    PortStart, err = getEnvAsInt("start_port", 8801)
+	if err != nil {
+		log.Printf("Error parsing PORT_START, using default 8801: %v\n", err)
+	}
+
+	PortEnd, err = getEnvAsInt("end_port", 8820)
+	if err != nil {
+		log.Printf("Error parsing PORT_END, using default 8820: %v\n", err)
+	}
+
+    fmt.Printf("At Config: PortStart: %d, PortEnd: %d\n", PortStart, PortEnd)
+    log.Printf("At Config: PortStart: %d, PortEnd: %d\n", PortStart, PortEnd)
+
+
     if err := os.Setenv("LOG_LEVEL", "info"); err != nil {
         log.Println("Environment variables loaded with default configurations")
     }
@@ -36,4 +57,20 @@ func GetPort() string {
     defaultPort := "3000"
     log.Printf("No command-line argument provided, using default port: %s\n", defaultPort)
     return defaultPort
+}
+
+// getEnvAsInt retrieves the value of the environment variable as an integer or returns a default value.
+func getEnvAsInt(key string, defaultValue int) (int, error) {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue, nil
+	}
+	return strconv.Atoi(valueStr)
+}
+
+func getEnv(key string, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
 }

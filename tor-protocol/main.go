@@ -2,10 +2,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"time"
 
+	"tor-protocol/config"
 	"tor-protocol/server"
 )
 
@@ -16,5 +18,7 @@ func main() {
     log.Printf("tor-protocol API\n")
 
     // Start server
+    fmt.Println("At ServerMain: LoadConfig")
+	config.LoadConfig()
     server.ServerMain()
 }

@@ -16,7 +16,7 @@ import (
 )
 
 // Define port range for knownPorts generation
-const (
+var (
 	portStart = config.PortStart
 	portEnd   = config.PortEnd
 )
@@ -124,6 +124,8 @@ func buildRandomRoute(currentPort, finalPort string) []string {
 	})
 
 	// Pick random number of hops: 1–3
+	fmt.Printf("Available ports: %v\n", available)
+	fmt.Printf("Port start: %d, Port end: %d\n", portStart, portEnd)
 	numHops := rand.Intn(portEnd-portStart) + 1
 	if numHops > len(available) {
 		numHops = len(available)
