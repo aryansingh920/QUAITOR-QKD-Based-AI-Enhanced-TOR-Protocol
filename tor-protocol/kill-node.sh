@@ -3,7 +3,7 @@
 
 echo "Killing processes running on ports ${ports[@]}..."
 
-for port in {8801..8810}; do
+for port in {8801..8820}; do
   # Find the process ID (PID) using the port
   pid=$(lsof -t -i tcp:$port)
 

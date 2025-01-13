@@ -7,15 +7,15 @@ if [ ! -f "main.go" ]; then
 fi
 
 # Start the first tab in the current window
-port=9001
-osascript <<EOF
-tell application "Terminal"
-    do script "cd $(pwd) && go run main.go $port"
-end tell
-EOF
+# port=9001
+# osascript <<EOF
+# tell application "Terminal"
+#     do script "cd $(pwd) && go run main.go $port"
+# end tell
+# EOF
 
 # Open additional tabs for ports 9002 to 9010
-for port in {8801..8810}; do
+for port in {8801..8820}; do
   osascript <<EOF
 tell application "Terminal"
     activate

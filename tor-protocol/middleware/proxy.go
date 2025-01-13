@@ -18,7 +18,7 @@ import (
 // Define port range for knownPorts generation
 const (
 	portStart = 8801
-	portEnd   = 8810
+	portEnd   = 8820
 )
 
 // getKnownPorts dynamically generates the list of known ports based on the range.
