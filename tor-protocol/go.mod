@@ -6,7 +6,7 @@ toolchain go1.23.4
 
 require (
 	github.com/gofiber/fiber/v2 v2.49.0
-	github.com/joho/godotenv v1.5.1
+	// github.com/joho/godotenv v1.5.1
 )
 
 require (
