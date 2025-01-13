@@ -1,3 +1,4 @@
+// server.go
 package server
 
 import (
@@ -15,38 +16,40 @@ import (
 )
 
 func ServerMain() {
-	// Initialize Fiber app
-	fmt.Printf("tor-protocol API\n")
-	if err := client.SendRequest(); err != nil {
-		log.Printf("Error sending request: %v", err)
-	}
-	app := fiber.New()
+    // Initialize Fiber app
+    fmt.Printf("tor-protocol API\n")
 
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*", // Change to specific domains for better security
-		AllowMethods:     "GET,POST,PUT,DELETE",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		ExposeHeaders:    "Content-Length",
-		AllowCredentials: true,
-	}))
-	app.Use(helmet.New())
-// 	app.Use(limiter.New(limiter.Config{
-// 	Max:        10, // Max requests
-// 	Expiration: 30 * time.Second, // Time window
-// }))
+    // Example usage of the client, optional
+    if err := client.SendRequest(); err != nil {
+        log.Printf("Error sending request: %v", err)
+    }
 
+    app := fiber.New()
 
+    // Basic middlewares
+    app.Use(cors.New(cors.Config{
+        AllowOrigins:     "*", // Change to specific domains for better security
+        AllowMethods:     "GET,POST,PUT,DELETE",
+        AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+        ExposeHeaders:    "Content-Length",
+        AllowCredentials: true,
+    }))
+    app.Use(helmet.New())
 
-	// Load environment configuration
-	config.LoadConfig()
+    // Optionally, you can rate-limit
+    // app.Use(limiter.New(limiter.Config{
+    //     Max:        10, // Max requests
+    //     Expiration: 30 * time.Second, // Time window
+    // }))
 
-	// Setup API routes
-	//print the current route log with time stamp
+    // Load environment configuration
+    config.LoadConfig()
 
-	routers.SetupRoutes(app)
+    // Setup API routes
+    routers.SetupRoutes(app)
 
-	// Start server
-	port := config.GetPort()
-	log.Printf("Server running on port %s", port)
-	log.Fatal(app.Listen(":" + port))
+    // Start server
+    port := config.GetPort()
+    log.Printf("Server running on port %s", port)
+    log.Fatal(app.Listen(":" + port))
 }

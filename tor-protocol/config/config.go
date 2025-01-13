@@ -1,3 +1,4 @@
+// config.go
 package config
 
 import (
@@ -5,24 +6,27 @@ import (
 	"os"
 )
 
+
+
 func LoadConfig() {
-	// Load environment variables if .env file exists
-	if err := os.Setenv("LOG_LEVEL", "info"); err != nil {
-		log.Println("Environment variables loaded with default configurations")
-	}
+    // Load environment variables or defaults
+    // You can extend this to parse .env files with e.g. github.com/joho/godotenv if desired
+    if err := os.Setenv("LOG_LEVEL", "info"); err != nil {
+        log.Println("Environment variables loaded with default configurations")
+    }
 }
 
+// GetPort returns the server port from command-line arg if provided,
+// otherwise it defaults to "3000".
 func GetPort() string {
-	// Check if a command-line argument is passed for the port
-	args := os.Args
-	if len(args) > 1 {
-		port := args[1]
-		log.Printf("Using port from command-line argument: %s\n", port)
-		return port
-	}
+    args := os.Args
+    if len(args) > 1 {
+        port := args[1]
+        log.Printf("Using port from command-line argument: %s\n", port)
+        return port
+    }
 
-	// Fallback to default port if no argument is provided
-	defaultPort := "3000"
-	log.Printf("No command-line argument provided, using default port: %s\n", defaultPort)
-	return defaultPort
+    defaultPort := "3000"
+    log.Printf("No command-line argument provided, using default port: %s\n", defaultPort)
+    return defaultPort
 }
