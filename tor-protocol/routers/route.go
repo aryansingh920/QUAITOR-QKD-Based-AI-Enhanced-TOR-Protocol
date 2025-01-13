@@ -35,7 +35,7 @@ func SetupRoutes(app *fiber.App) {
     })
 
     // Middleware for custom headers (optional usage)
-    // app.Use(middleware.CustomHeaderMiddleware())
+    app.Use(middleware.CustomHeaderMiddleware())
 
     // -----------------------------------------------------------------------
     // 2) These routes handle the "first hop" – building or starting the route

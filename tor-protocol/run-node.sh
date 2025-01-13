@@ -15,7 +15,7 @@ fi
 # EOF
 
 export start_port=8801
-export end_port=8805
+export end_port=8810
 
 # Open additional tabs for ports 9002 to 9010
 for ((port=start_port; port<=end_port; port++)); do
