@@ -29,6 +29,8 @@ func getKnownPorts() []int {
 	}
 	return ports
 }
+
+
 func ProxyMiddleware(c *fiber.Ctx) error {
     currentPort := config.GetPort()
     finalPort := c.Params("port")
@@ -36,6 +38,7 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     existingRoute := c.Get(config.CustomHeaderKey)
     var route []string
 
+    // Build or retrieve existing route
     if existingRoute == "" {
         route = buildRandomRoute(currentPort, finalPort)
         log.Printf("[Port %s] [ProxyMiddleware] Generated new route: %v\n", currentPort, route)
@@ -44,6 +47,7 @@ func ProxyMiddleware(c *fiber.Ctx) error {
         log.Printf("[Port %s] [ProxyMiddleware] Existing route: %v\n", currentPort, route)
     }
 
+    // If no route left, target is the finalPort
     if len(route) == 0 {
         route = []string{finalPort}
     }
@@ -52,16 +56,61 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     route = route[1:]
     updatedRoute := strings.Join(route, ",")
 
-    // Build the base target
-    target := fmt.Sprintf("%s:%s/%s", config.DefaultLink, nextHop, pathAfterOnion)
+    // --- 1) Parse and potentially DECRYPT incoming query params ---
+    incomingQuery := c.Request().URI().QueryString()
+    queryParams := parseQueryParams(string(incomingQuery))
 
-    // Append the query string if it exists
-    qs := c.Request().URI().QueryString()
-    if len(qs) > 0 {
-        target = target + "?" + string(qs)
+    // Let's assume only "msg" and "entry" might be encrypted
+    if val, ok := queryParams["msg"]; ok && val != "" {
+        decrypted, err := decryptMessage(val)
+        if err != nil {
+            log.Printf("[Port %s] Decryption error for 'msg': %v", currentPort, err)
+        } else {
+            queryParams["msg"] = decrypted
+        }
+    }
+    if val, ok := queryParams["entry"]; ok && val != "" {
+        decrypted, err := decryptMessage(val)
+        if err != nil {
+            log.Printf("[Port %s] Decryption error for 'entry': %v", currentPort, err)
+        } else {
+            queryParams["entry"] = decrypted
+        }
     }
 
-    // Simulate processing delay at the current node
+    // --- 2) (Optional) Do something with the decrypted parameters here ---
+
+    // --- 3) Potentially ENCRYPT before sending to next hop ---
+    // If nextHop is NOT the final hop, you might want to re-encrypt.
+    // If nextHop == finalPort (and it's truly final), you might send plaintext.
+    // This example encrypts again unconditionally (for demonstration).
+    if val, ok := queryParams["msg"]; ok && val != "" {
+        encrypted, err := encryptMessage(val)
+        if err != nil {
+            log.Printf("[Port %s] Encryption error for 'msg': %v", currentPort, err)
+        } else {
+            queryParams["msg"] = encrypted
+        }
+    }
+    if val, ok := queryParams["entry"]; ok && val != "" {
+        encrypted, err := encryptMessage(val)
+        if err != nil {
+            log.Printf("[Port %s] Encryption error for 'entry': %v", currentPort, err)
+        } else {
+            queryParams["entry"] = encrypted
+        }
+    }
+
+    // Now rebuild the query string
+    newQueryString := buildQueryString(queryParams)
+
+    // Build the target URL
+    target := fmt.Sprintf("%s:%s/%s", config.DefaultLink, nextHop, pathAfterOnion)
+    if newQueryString != "" {
+        target += "?" + newQueryString
+    }
+
+    // Simulate a random delay
     randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond
     log.Printf("[Port %s] Adding random delay: %s", currentPort, randomDelay)
     time.Sleep(randomDelay)
@@ -72,9 +121,92 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     // Update the route header
     c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
 
-    // Now forward the request (including the original query string)
+    // Forward the request
     return proxy.Forward(target)(c)
 }
+
+
+// parseQueryParams converts a raw query string into a map of key/value pairs.
+// This is a simplistic implementation; you can also use url.ParseQuery for more robust handling.
+func parseQueryParams(rawQuery string) map[string]string {
+    result := make(map[string]string)
+    if rawQuery == "" {
+        return result
+    }
+    pairs := strings.Split(rawQuery, "&")
+    for _, pair := range pairs {
+        parts := strings.SplitN(pair, "=", 2)
+        if len(parts) == 2 {
+            key := parts[0]
+            val := parts[1]
+            result[key] = val
+        } else {
+            // Handle keys with no value if needed
+            result[parts[0]] = ""
+        }
+    }
+    return result
+}
+
+// buildQueryString rebuilds a query string from a map.
+func buildQueryString(params map[string]string) string {
+    var parts []string
+    for k, v := range params {
+        // URL-encode them if needed
+        part := fmt.Sprintf("%s=%s", k, v)
+        parts = append(parts, part)
+    }
+    return strings.Join(parts, "&")
+}
+
+
+
+// func ProxyMiddleware(c *fiber.Ctx) error {
+//     currentPort := config.GetPort()
+//     finalPort := c.Params("port")
+//     pathAfterOnion := c.Params("*")
+//     existingRoute := c.Get(config.CustomHeaderKey)
+//     var route []string
+
+//     if existingRoute == "" {
+//         route = buildRandomRoute(currentPort, finalPort)
+//         log.Printf("[Port %s] [ProxyMiddleware] Generated new route: %v\n", currentPort, route)
+//     } else {
+//         route = strings.Split(existingRoute, ",")
+//         log.Printf("[Port %s] [ProxyMiddleware] Existing route: %v\n", currentPort, route)
+//     }
+
+//     if len(route) == 0 {
+//         route = []string{finalPort}
+//     }
+
+//     nextHop := route[0]
+//     route = route[1:]
+//     updatedRoute := strings.Join(route, ",")
+
+//     // Build the base target
+//     target := fmt.Sprintf("%s:%s/%s", config.DefaultLink, nextHop, pathAfterOnion)
+
+//     // Append the query string if it exists
+//     qs := c.Request().URI().QueryString()
+//     if len(qs) > 0 {
+//         target = target + "?" + string(qs)
+//     }
+
+//     // Simulate processing delay at the current node
+//     randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond
+//     log.Printf("[Port %s] Adding random delay: %s", currentPort, randomDelay)
+//     time.Sleep(randomDelay)
+
+//     log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+//         currentPort, c.IP(), nextHop, route)
+
+//     // Update the route header
+//     c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
+
+//     // Now forward the request (including the original query string)
+//     return proxy.Forward(target)(c)
+// }
 
 // func ProxyMiddleware(c *fiber.Ctx) error {
 //     currentPort := config.GetPort()
