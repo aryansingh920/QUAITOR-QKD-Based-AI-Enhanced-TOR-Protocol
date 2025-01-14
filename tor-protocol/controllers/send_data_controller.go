@@ -46,12 +46,16 @@ func HomeHandler(ctx *fiber.Ctx) error {
 	//remove / from the path
 	// ctx.Path()
 	// path := strings.TrimPrefix(ctx.Path(), "/")
+	msgParam := ctx.Query("msg","")
+	entryParam := ctx.Query("entry","")
 
 
 
 	data := map[string]interface{}{
 		"Title": strings.TrimPrefix(ctx.Path(), "/"),
 		"Name":  "Aryan",
+		"Msg": msgParam,
+		"Entry": entryParam,
 	}
 	return renderTemplateToFiber(ctx, "layout", data)
 }

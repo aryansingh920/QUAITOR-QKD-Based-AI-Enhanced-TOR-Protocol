@@ -29,7 +29,6 @@ func getKnownPorts() []int {
 	}
 	return ports
 }
-
 func ProxyMiddleware(c *fiber.Ctx) error {
     currentPort := config.GetPort()
     finalPort := c.Params("port")
@@ -53,52 +52,141 @@ func ProxyMiddleware(c *fiber.Ctx) error {
     route = route[1:]
     updatedRoute := strings.Join(route, ",")
 
-    target := fmt.Sprintf("%s:%s/%s",config.DefaultLink, nextHop, pathAfterOnion)
+    // Build the base target
+    target := fmt.Sprintf("%s:%s/%s", config.DefaultLink, nextHop, pathAfterOnion)
+
+    // Append the query string if it exists
+    qs := c.Request().URI().QueryString()
+    if len(qs) > 0 {
+        target = target + "?" + string(qs)
+    }
 
     // Simulate processing delay at the current node
-    randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond // Up to 5 seconds
+    randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond
     log.Printf("[Port %s] Adding random delay: %s", currentPort, randomDelay)
     time.Sleep(randomDelay)
 
     log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
         currentPort, c.IP(), nextHop, route)
 
+    // Update the route header
     c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
+
+    // Now forward the request (including the original query string)
     return proxy.Forward(target)(c)
 }
 
+// func ProxyMiddleware(c *fiber.Ctx) error {
+//     currentPort := config.GetPort()
+//     finalPort := c.Params("port")
+//     pathAfterOnion := c.Params("*")
+//     existingRoute := c.Get(config.CustomHeaderKey)
+//     var route []string
+
+//     if existingRoute == "" {
+//         route = buildRandomRoute(currentPort, finalPort)
+//         log.Printf("[Port %s] [ProxyMiddleware] Generated new route: %v\n", currentPort, route)
+//     } else {
+//         route = strings.Split(existingRoute, ",")
+//         log.Printf("[Port %s] [ProxyMiddleware] Existing route: %v\n", currentPort, route)
+//     }
+
+//     if len(route) == 0 {
+//         route = []string{finalPort}
+//     }
+
+//     nextHop := route[0]
+//     route = route[1:]
+//     updatedRoute := strings.Join(route, ",")
+
+//     target := fmt.Sprintf("%s:%s/%s",config.DefaultLink, nextHop, pathAfterOnion)
+
+//     // Simulate processing delay at the current node
+//     randomDelay := time.Duration(rand.Intn(config.RandomDelayUpperLimit)) * time.Millisecond // Up to 5 seconds
+//     log.Printf("[Port %s] Adding random delay: %s", currentPort, randomDelay)
+//     time.Sleep(randomDelay)
+
+//     log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+//         currentPort, c.IP(), nextHop, route)
+
+//     c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
+//     return proxy.Forward(target)(c)
+// }
+
 // ProxyExactMiddleware handles requests with no trailing slash for .onion routes.
+// func ProxyExactMiddleware(c *fiber.Ctx) error {
+// 	currentPort := config.GetPort()
+// 	finalPort := c.Params("port")
+
+// 	existingRoute := c.Get(config.CustomHeaderKey)
+// 	var route []string
+
+// 	if existingRoute == "" {
+// 		route = buildRandomRoute(currentPort, finalPort)
+// 		log.Printf("[Port %s] [ProxyExactMiddleware] Generated new route: %v\n", currentPort, route)
+// 	} else {
+// 		route = strings.Split(existingRoute, ",")
+// 		log.Printf("[Port %s] [ProxyExactMiddleware] Existing route: %v\n", currentPort, route)
+// 	}
+
+// 	if len(route) == 0 {
+// 		route = []string{finalPort}
+// 	}
+
+// 	nextHop := route[0]
+// 	route = route[1:]
+// 	updatedRoute := strings.Join(route, ",")
+
+// 	target := fmt.Sprintf("%s:%s",config.DefaultLink, nextHop)
+
+// 	log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+// 		currentPort, c.IP(), nextHop, route)
+
+// 	c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
+// 	return proxy.Forward(target)(c)
+// }
+
 func ProxyExactMiddleware(c *fiber.Ctx) error {
-	currentPort := config.GetPort()
-	finalPort := c.Params("port")
+    currentPort := config.GetPort()
+    finalPort := c.Params("port")
 
-	existingRoute := c.Get(config.CustomHeaderKey)
-	var route []string
+    existingRoute := c.Get(config.CustomHeaderKey)
+    var route []string
 
-	if existingRoute == "" {
-		route = buildRandomRoute(currentPort, finalPort)
-		log.Printf("[Port %s] [ProxyExactMiddleware] Generated new route: %v\n", currentPort, route)
-	} else {
-		route = strings.Split(existingRoute, ",")
-		log.Printf("[Port %s] [ProxyExactMiddleware] Existing route: %v\n", currentPort, route)
-	}
+    if existingRoute == "" {
+        route = buildRandomRoute(currentPort, finalPort)
+        log.Printf("[Port %s] [ProxyExactMiddleware] Generated new route: %v\n", currentPort, route)
+    } else {
+        route = strings.Split(existingRoute, ",")
+        log.Printf("[Port %s] [ProxyExactMiddleware] Existing route: %v\n", currentPort, route)
+    }
 
-	if len(route) == 0 {
-		route = []string{finalPort}
-	}
+    if len(route) == 0 {
+        route = []string{finalPort}
+    }
 
-	nextHop := route[0]
-	route = route[1:]
-	updatedRoute := strings.Join(route, ",")
+    nextHop := route[0]
+    route = route[1:]
+    updatedRoute := strings.Join(route, ",")
 
-	target := fmt.Sprintf("%s:%s",config.DefaultLink, nextHop)
+    // Build the base target
+    target := fmt.Sprintf("%s:%s", config.DefaultLink, nextHop)
 
-	log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
-		currentPort, c.IP(), nextHop, route)
+    // Append the query string if it exists
+    qs := c.Request().URI().QueryString()
+    if len(qs) > 0 {
+        target = target + "?" + string(qs)
+    }
 
-	c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
-	return proxy.Forward(target)(c)
+    log.Printf("[Port %s] Received request from: %s => next hop: %s => remaining route: %v\n",
+        currentPort, c.IP(), nextHop, route)
+
+    // Update the route header
+    c.Request().Header.Set(config.CustomHeaderKey, updatedRoute)
+
+    return proxy.Forward(target)(c)
 }
+
 
 // buildRandomRoute constructs a random route (1–3 intermediate hops), excluding the currentPort
 // and excluding finalPort as an intermediate hop. The final hop is always finalPort.
