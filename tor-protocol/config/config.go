@@ -10,7 +10,7 @@ import (
 
 var (
 	PortStart = 8801 
-	PortEnd  = 8810
+	PortEnd  = 8805
     DefaultLink = "http://127.0.0.1"
     RandomDelayUpperLimit = 5000
     CustomHeaderKey = "X-Tor-Route"
@@ -25,15 +25,20 @@ func LoadConfig() {
     // You can extend this to parse .env files with e.g. github.com/joho/godotenv if desired
 
 
-    PortStart, err = getEnvAsInt("start_port", 8801)
+    PortStartEnv, err := getEnvAsInt("start_port", 8801)
 	if err != nil {
 		log.Printf("Error parsing PORT_START, using default 8801: %v\n", err)
 	}
 
-	PortEnd, err = getEnvAsInt("end_port", 8820)
+	PortStart = PortStartEnv
+
+
+	PortEndEnv, err := getEnvAsInt("end_port", 8820)
 	if err != nil {
 		log.Printf("Error parsing PORT_END, using default 8820: %v\n", err)
 	}
+
+	PortEnd = PortEndEnv 
 
     fmt.Printf("At Config: PortStart: %d, PortEnd: %d\n", PortStart, PortEnd)
     log.Printf("At Config: PortStart: %d, PortEnd: %d\n", PortStart, PortEnd)

@@ -9,8 +9,7 @@ import (
 	"strings"
 )
 
-
-
+// In middleware.go (or wherever runPythonCommand is):
 func runPythonCommand(mode, message string) (string, error) {
     cmd := exec.Command("python", "../qkd/main.py",
         "--mode", mode,
@@ -27,9 +26,18 @@ func runPythonCommand(mode, message string) (string, error) {
         return "", fmt.Errorf("python script error: %w - details: %s", err, out.String())
     }
 
-    // Trim to avoid trailing newlines
-    return strings.TrimSpace(out.String()), nil
+    // Raw output from Python (which may include newline logs)
+    rawOutput := out.String()
+
+    // Replace newlines with spaces (or remove them entirely) to avoid breaking the URL
+    // Then trim leading/trailing whitespace
+    sanitizedOutput := strings.ReplaceAll(rawOutput, "\n", " ")
+    sanitizedOutput = strings.ReplaceAll(sanitizedOutput, "\r", " ")
+    sanitizedOutput = strings.TrimSpace(sanitizedOutput)
+
+    return sanitizedOutput, nil
 }
+
 
 func encryptMessage(plaintext string) (string, error) {
     return runPythonCommand("encrypt", plaintext)

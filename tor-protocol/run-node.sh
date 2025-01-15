@@ -15,7 +15,8 @@ fi
 # EOF
 
 export start_port=8801
-export end_port=8810
+export end_port=8805
+
 
 # Open additional tabs for ports 9002 to 9010
 for ((port=start_port; port<=end_port; port++)); do
@@ -24,7 +25,7 @@ tell application "Terminal"
     activate
     tell application "System Events" to keystroke "t" using command down
     delay 0.2
-    do script "cd $(pwd) && go run main.go $port && cd .. && source./.venv/bin/activate" in front window
+    do script "cd $(pwd) && cd ../ && source ./.venv/bin/activate && cd tor-protocol && go run main.go $port" in front window
 end tell
 EOF
 done
