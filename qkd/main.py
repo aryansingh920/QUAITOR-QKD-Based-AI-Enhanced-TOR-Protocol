@@ -23,7 +23,7 @@ import os
 class QKD:
     def __init__(self):
         self.simulator = AerSimulator()
-        self.key_file = 'quantum_key.json'
+        self.key_file = './quantum_key.json'
 
     def generate_quantum_key(self, key_length):
         """Generate quantum key using BB84 protocol"""
@@ -220,9 +220,9 @@ def main():
         return
 
     # Generate quantum key
-    print("Generating quantum key...")
+    # print("Generating quantum key...")
     quantum_key = qkd.generate_quantum_key(args.key_length)
-    print(f"Generated key: {quantum_key}")
+    # print(f"Generated key: {quantum_key}")
 
     if args.mode == 'encrypt':
         if not args.message:
