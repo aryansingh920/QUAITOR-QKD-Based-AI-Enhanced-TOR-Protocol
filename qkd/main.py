@@ -1,3 +1,13 @@
+"""
+Created on 15/01/2025
+
+@author: Aryan
+
+Filename: main.py
+
+Relative Path: qkd/main.py
+"""
+
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import random_statevector
@@ -219,13 +229,15 @@ def main():
             print("Error: Message is required for encryption")
             return
         encrypted = qkd.encrypt(args.message, quantum_key)
-        print(f"\nEncrypted message: {encrypted}")
+        # print(f"\nEncrypted message: {encrypted}")
+        print(encrypted, end='')
     else:
         if not args.message:
             print("Error: Message is required for decryption")
             return
         decrypted = qkd.decrypt(args.message, quantum_key)
-        print(f"\nDecrypted message: {decrypted}")
+        # print(f"\nDecrypted message: {decrypted}")
+        print(decrypted, end='')
 
 
 if __name__ == "__main__":
